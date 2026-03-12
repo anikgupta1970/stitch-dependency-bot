@@ -1,1 +1,49 @@
+name: Upgrade stitch-jbi everywhere
 
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        required: true
+        description: "New stitch-jbi version"
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install gh CLI
+        run: sudo apt install gh -y
+
+      - name: Upgrade repos
+        env:
+          GH_TOKEN: ${{ secrets.DOWNSTREAM_PAT }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          for repo in $(jq -r '.repos[]' repos.json); do
+            echo "Processing $repo"
+
+            git clone https://x-access-token:${GH_TOKEN}@github.com/$repo.git
+            cd $(basename $repo)
+
+            mvn versions:set-property \
+              -Dproperty=stitch.jbi.version \
+              -DnewVersion=$VERSION \
+              -DgenerateBackupPoms=false
+
+            git checkout -b chore/upgrade-stitch-jbi-$VERSION
+
+            git config user.name "dependency-bot"
+            git config user.email "bot@company.com"
+
+            git commit -am "chore: upgrade stitch-jbi to $VERSION"
+            git push origin HEAD
+
+            gh pr create \
+              --title "Upgrade stitch-jbi to $VERSION" \
+              --body "Automated dependency upgrade"
+
+            cd ..
+          done
