@@ -4,46 +4,73 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        required: true
         description: "New stitch-jbi version"
+        required: true
 
 jobs:
-  upgrade:
+
+  load-repos:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install gh CLI
-        run: sudo apt install gh -y
+      - name: Install jq
+        run: sudo apt-get install jq -y
 
-      - name: Upgrade repos
+      - id: set-matrix
+        run: |
+          MATRIX=$(jq -c '{repo: .repos}' repos.json)
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+
+  upgrade:
+
+    needs: load-repos
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix: ${{ fromJson(needs.load-repos.outputs.matrix) }}
+
+    steps:
+
+      - name: Configure git auth
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.DOWNSTREAM_PAT }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Clone repo
+        run: |
+          git clone https://github.com/${{ matrix.repo }}.git
+          cd $(basename ${{ matrix.repo }} .git)
+
+      - name: Update dependency
+        run: |
+          cd $(basename ${{ matrix.repo }})
+
+          mvn versions:set-property \
+            -Dproperty=stitch.jbi.version \
+            -DnewVersion=${{ inputs.version }} \
+            -DgenerateBackupPoms=false
+
+      - name: Commit changes
+        run: |
+          cd $(basename ${{ matrix.repo }})
+
+          git checkout -b chore/upgrade-stitch-jbi-${{ inputs.version }}
+
+          git config user.name "dependency-bot"
+          git config user.email "bot@company.com"
+
+          git commit -am "chore: upgrade stitch-jbi to ${{ inputs.version }}"
+          git push origin HEAD
+
+      - name: Create PR
         env:
           GH_TOKEN: ${{ secrets.DOWNSTREAM_PAT }}
-          VERSION: ${{ inputs.version }}
         run: |
-          for repo in $(jq -r '.repos[]' repos.json); do
-            echo "Processing $repo"
+          cd $(basename ${{ matrix.repo }})
 
-            git clone https://x-access-token:${GH_TOKEN}@github.com/$repo.git
-            cd $(basename $repo)
-
-            mvn versions:set-property \
-              -Dproperty=stitch.jbi.version \
-              -DnewVersion=$VERSION \
-              -DgenerateBackupPoms=false
-
-            git checkout -b chore/upgrade-stitch-jbi-$VERSION
-
-            git config user.name "dependency-bot"
-            git config user.email "bot@company.com"
-
-            git commit -am "chore: upgrade stitch-jbi to $VERSION"
-            git push origin HEAD
-
-            gh pr create \
-              --title "Upgrade stitch-jbi to $VERSION" \
-              --body "Automated dependency upgrade"
-
-            cd ..
-          done
+          gh pr create \
+            --title "Upgrade stitch-jbi to ${{ inputs.version }}" \
+            --body "Automated dependency upgrade"
