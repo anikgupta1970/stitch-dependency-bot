@@ -10,8 +10,7 @@
   
     That tag triggers the GitHub Actions notify-downstream.yml workflow.
   -->
-  <version>2.0.38-SNAPSHOT</version>
-  <stitch.jbi.interface.version>11</stitch.jbi.interface.version>
+  <version>2.0</version>
   <packaging>pom</packaging>
 
 </project>
