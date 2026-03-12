@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.spliceforms</groupId>
+  <artifactId>stitch-dependency-bot</artifactId>
+  <!--
+    STEP 1: This is the library that gets released.
+    When mvn release:prepare runs, it strips -SNAPSHOT and pushes tag v2.0.138.
+  
+    That tag triggers the GitHub Actions notify-downstream.yml workflow.
+  -->
+  <version>2.0.38-SNAPSHOT</version>
+  <stitch.jbi.interface.version>11</stitch.jbi.interface.version>
+  <packaging>pom</packaging>
+
+</project>
